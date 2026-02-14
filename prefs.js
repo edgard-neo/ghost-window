@@ -1,6 +1,6 @@
 /**
  * Ghost Window — Preferences
- * Painel de configurações acessível em gnome-extensions prefs
+ * Settings panel accessible via gnome-extensions prefs
  */
 
 import Adw from 'gi://Adw';
@@ -12,27 +12,27 @@ export default class GhostWindowPrefs extends ExtensionPreferences {
   fillPreferencesWindow(window) {
     const settings = this.getSettings();
 
-    window.set_default_size(520, 400);
+    window.set_default_size(520, 420);
     window.set_title('Ghost Window');
 
-    // ── Página principal ──────────────────────────────────────
+    // ── Main page ─────────────────────────────────────────────
     const page = new Adw.PreferencesPage({
-      title: 'Configurações',
+      title: 'Settings',
       icon_name: 'preferences-system-symbolic',
     });
     window.add(page);
 
-    // ── Grupo: Atalhos ────────────────────────────────────────
+    // ── Group: Shortcuts ──────────────────────────────────────
     const group = new Adw.PreferencesGroup({
-      title: '⌨️  Atalhos de Teclado',
-      description: 'Personalize os atalhos para esconder e restaurar janelas.',
+      title: '⌨️  Keyboard Shortcuts',
+      description: 'Customize the shortcuts to hide and release windows.',
     });
     page.add(group);
 
-    // Atalho: esconder
+    // Hide shortcut
     const hideRow = new Adw.ActionRow({
-      title: 'Esconder janela ativa',
-      subtitle: 'Remove a janela do Alt+Tab e do Overview',
+      title: 'Hide active window',
+      subtitle: 'Removes the window from Alt+Tab and Overview',
     });
     const hideEntry = new Gtk.Entry({
       text: settings.get_strv('hide-shortcut')[0] || '<Control><Alt>j',
@@ -45,10 +45,10 @@ export default class GhostWindowPrefs extends ExtensionPreferences {
     hideRow.add_suffix(hideEntry);
     group.add(hideRow);
 
-    // Atalho: restaurar (menu)
+    // Release shortcut
     const restoreRow = new Adw.ActionRow({
-      title: 'Abrir lista de janelas escondidas',
-      subtitle: 'Abre o menu no painel para restaurar janelas',
+      title: 'Open hidden windows list',
+      subtitle: 'Opens the panel menu to release hidden windows',
     });
     const restoreEntry = new Gtk.Entry({
       text: settings.get_strv('restore-shortcut')[0] || '<Control><Alt>k',
@@ -61,21 +61,18 @@ export default class GhostWindowPrefs extends ExtensionPreferences {
     restoreRow.add_suffix(restoreEntry);
     group.add(restoreRow);
 
-    // ── Grupo: Info ───────────────────────────────────────────
+    // ── Group: How to use ─────────────────────────────────────
     const infoGroup = new Adw.PreferencesGroup({
-      title: '📖  Como usar',
+      title: '📖  How to use',
     });
     page.add(infoGroup);
 
     const steps = [
-      ['1.', 'Abra o Chrome com o YouTube tocando'],
-      ['2.', 'Pressione Super+` (crase) para esconder o Chrome'],
-      ['3.', 'O Chrome some do Alt+Tab e do Overview'],
-      ['4.', 'O áudio/vídeo continua rodando normalmente'],
-      [
-        '5.',
-        'Clique no 👻 no painel ou pressione Super+Shift+` para restaurar',
-      ],
+      ['1.', 'Open Chrome with YouTube playing'],
+      ['2.', 'Press Ctrl+Alt+J to hide the window'],
+      ['3.', 'Chrome disappears from Alt+Tab and Overview'],
+      ['4.', 'Audio/video keeps playing normally'],
+      ['5.', 'Click 👻 in the panel or press Ctrl+Alt+K to release'],
     ];
 
     steps.forEach(([num, text]) => {
@@ -86,18 +83,18 @@ export default class GhostWindowPrefs extends ExtensionPreferences {
       infoGroup.add(row);
     });
 
-    // ── Grupo: Formato dos atalhos ────────────────────────────
+    // ── Group: Shortcut format ────────────────────────────────
     const fmtGroup = new Adw.PreferencesGroup({
-      title: '💡  Formato dos atalhos',
-      description: 'Use o formato GLib para digitar atalhos manualmente.',
+      title: '💡  Shortcut format',
+      description: 'Use the GLib key format to type shortcuts manually.',
     });
     page.add(fmtGroup);
 
     const examples = [
-      ['<Super>grave', 'Super + ` (crase)'],
-      ['<Super><Shift>grave', 'Super + Shift + `'],
+      ['<Control><Alt>j', 'Ctrl + Alt + J'],
+      ['<Control><Alt>k', 'Ctrl + Alt + K'],
       ['<Super>h', 'Super + H'],
-      ['<Ctrl><Alt>h', 'Ctrl + Alt + H'],
+      ['<Control><Alt>h', 'Ctrl + Alt + H'],
     ];
 
     examples.forEach(([key, label]) => {

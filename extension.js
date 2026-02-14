@@ -47,61 +47,251 @@ const GhostIndicator = GObject.registerClass(
     }
 
     _buildMenu() {
-      const title = new PopupMenu.PopupMenuItem('', { reactive: false });
-      title.label.set_text('👻 Janelas Escondidas');
-      title.label.set_style('font-weight:bold;color:#aaa;font-size:11px;');
-      this.menu.addMenuItem(title);
+      // ── Header ──────────────────────────────────────────────
+      const header = new PopupMenu.PopupBaseMenuItem({
+        reactive: false,
+        can_focus: false,
+      });
+      const headerBox = new St.BoxLayout({
+        vertical: false,
+        style: 'padding: 4px 2px 6px 2px;',
+      });
+
+      const headerIcon = new St.Label({
+        text: '👻',
+        style: 'font-size:15px; margin-right:8px;',
+        y_align: Clutter.ActorAlign.CENTER,
+      });
+
+      const headerTextBox = new St.BoxLayout({ vertical: true });
+
+      const headerTitle = new St.Label({
+        text: 'Ghost Window',
+        style: 'font-weight:bold; font-size:12px; color:#ffffff;',
+      });
+
+      this._headerSub = new St.Label({
+        text: 'No hidden windows',
+        style: 'font-size:10px; color:#666;',
+      });
+
+      headerTextBox.add_child(headerTitle);
+      headerTextBox.add_child(this._headerSub);
+      headerBox.add_child(headerIcon);
+      headerBox.add_child(headerTextBox);
+      header.add_child(headerBox);
+      this.menu.addMenuItem(header);
 
       this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
+      // ── Lista dinâmica de janelas ────────────────────────────
       this._section = new PopupMenu.PopupMenuSection();
       this.menu.addMenuItem(this._section);
 
-      this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+      // ── Footer ──────────────────────────────────────────────
+      this._footerSep = new PopupMenu.PopupSeparatorMenuItem();
+      this.menu.addMenuItem(this._footerSep);
 
-      const restoreAll = this.menu.addAction('Mostrar todas', () => {
+      // Mostrar todas
+      const restoreAll = this.menu.addAction('↩  Release all', () => {
         this._ext.restoreAll();
         this.menu.close();
       });
-      restoreAll.label.set_style('color:#7ecfff;');
+      restoreAll.label.set_style('font-size:11px; color:#89b4fa;');
 
-      const hint = new PopupMenu.PopupMenuItem('', { reactive: false });
-      hint.label.set_text('Ctrl+Alt+J esconde  ·  Ctrl+Alt+K restaura');
-      hint.label.set_style('font-size:9px;color:#555;');
+      // Dica de atalhos
+      const hint = new PopupMenu.PopupBaseMenuItem({
+        reactive: false,
+        can_focus: false,
+      });
+      const hintLabel = new St.Label({
+        text: '⌨  Ctrl+Alt+J  hide   ·   Ctrl+Alt+K  release',
+        style: 'font-size:9px; color:#444; padding: 2px 0 4px 0;',
+      });
+      hint.add_child(hintLabel);
       this.menu.addMenuItem(hint);
 
       this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
-      const disable = this.menu.addAction('⏻  Desativar Ghost Window', () => {
+      // Desativar
+      const disable = this.menu.addAction('⏻  Disable Ghost Window', () => {
         this.menu.close();
         this._ext.restoreAll();
         Main.extensionManager.disableExtension(
           'ghost-window@ghostwindow.local'
         );
       });
-      disable.label.set_style('color:#ff6b6b;');
+      disable.label.set_style('font-size:11px; color:#f38ba8;');
     }
 
     _refreshMenu() {
       this._section.removeAll();
       const hidden = this._ext.getHiddenWindows();
 
+      // Atualiza subtítulo do header
+      if (this._headerSub) {
+        this._headerSub.set_text(
+          hidden.length === 0
+            ? 'No hidden windows'
+            : `${hidden.length} hidden window${hidden.length > 1 ? 's' : ''}`
+        );
+      }
+
       if (hidden.length === 0) {
-        const empty = new PopupMenu.PopupMenuItem('Nenhuma janela escondida', {
+        const empty = new PopupMenu.PopupBaseMenuItem({
           reactive: false,
+          can_focus: false,
         });
-        empty.label.set_style('color:#555;font-style:italic;');
+        const emptyBox = new St.BoxLayout({
+          vertical: true,
+          style: 'padding: 10px 4px;',
+          x_align: Clutter.ActorAlign.CENTER,
+        });
+        const emptyIcon = new St.Label({
+          text: '✦',
+          style: 'font-size:20px; color:#2a2a2a;',
+        });
+        const emptyLabel = new St.Label({
+          text: 'Press Ctrl+Alt+J to hide a window',
+          style: 'font-size:10px; color:#444; margin-top:6px;',
+        });
+        emptyBox.add_child(emptyIcon);
+        emptyBox.add_child(emptyLabel);
+        empty.add_child(emptyBox);
         this._section.addMenuItem(empty);
         return;
       }
 
       hidden.forEach(({ win, appName, title }) => {
-        const label = `${appName}${title ? ' — ' + title.slice(0, 28) : ''}`;
-        const item = this._section.addAction(label, () => {
+        const item = new PopupMenu.PopupBaseMenuItem({ style_class: '' });
+
+        const row = new St.BoxLayout({
+          vertical: false,
+          x_expand: true,
+          style: 'padding: 3px 0;',
+        });
+
+        // ── Ícone real do app ──────────────────────────────────
+        let appIconWidget;
+        try {
+          const tracker = Shell.WindowTracker.get_default();
+          const app = tracker.get_window_app(win);
+          if (app) {
+            appIconWidget = app.create_icon_texture(20);
+            appIconWidget.set_style('margin-right:10px; min-width:20px;');
+          }
+        } catch (_) {}
+
+        // Fallback: emoji genérico
+        if (!appIconWidget) {
+          appIconWidget = new St.Label({
+            text: '▣',
+            style:
+              'font-size:16px; color:#555; margin-right:10px; min-width:20px;',
+            y_align: Clutter.ActorAlign.CENTER,
+          });
+        }
+
+        // ── Textos (nome + título separados) ───────────────────
+        const textBox = new St.BoxLayout({
+          vertical: true,
+          x_expand: true,
+          y_align: Clutter.ActorAlign.CENTER,
+        });
+
+        const appLabel = new St.Label({
+          text: appName,
+          style: 'font-size:12px; color:#e0e0e0; font-weight:bold;',
+        });
+        appLabel.clutter_text.ellipsize = 3; // PANGO_ELLIPSIZE_END
+
+        const windowTitle = title
+          ? title
+              .replace(` — ${appName}`, '')
+              .replace(` - ${appName}`, '')
+              .trim()
+          : '';
+
+        textBox.add_child(appLabel);
+
+        if (windowTitle) {
+          const titleLabel = new St.Label({
+            text: windowTitle,
+            style: 'font-size:10px; color:#555; margin-top:1px;',
+          });
+          titleLabel.clutter_text.ellipsize = 3;
+          textBox.add_child(titleLabel);
+        }
+
+        // ── Botão ✕ fechar (fecha a janela) ───────────────────
+        const closeBtn = new St.Button({
+          label: '✕',
+          style: `
+            font-size:11px;
+            color:#444;
+            background:transparent;
+            border:none;
+            padding: 2px 6px;
+            border-radius:4px;
+            margin-left:6px;
+          `,
+          y_align: Clutter.ActorAlign.CENTER,
+          x_align: Clutter.ActorAlign.END,
+        });
+
+        closeBtn.connect('clicked', () => {
+          try {
+            win.delete(global.get_current_time());
+          } catch (_) {}
+          this._ext._cleanup(win);
+          this.menu.close();
+        });
+
+        closeBtn.connect('enter-event', () => {
+          closeBtn.set_style(`
+            font-size:11px;
+            color:#f38ba8;
+            background:rgba(243,139,168,0.12);
+            border:none;
+            padding: 2px 6px;
+            border-radius:4px;
+            margin-left:6px;
+          `);
+        });
+
+        closeBtn.connect('leave-event', () => {
+          closeBtn.set_style(`
+            font-size:11px;
+            color:#444;
+            background:transparent;
+            border:none;
+            padding: 2px 6px;
+            border-radius:4px;
+            margin-left:6px;
+          `);
+        });
+
+        row.add_child(appIconWidget);
+        row.add_child(textBox);
+        row.add_child(closeBtn);
+        item.add_child(row);
+
+        // Clicar no item = restaurar
+        item.connect('activate', () => {
           this._ext.restoreWindow(win);
           this.menu.close();
         });
-        item.label.set_style('max-width:220px;');
+
+        // Hover no item inteiro
+        item.connect('notify::active', () => {
+          appLabel.set_style(
+            item.active
+              ? 'font-size:12px; color:#89b4fa; font-weight:bold;'
+              : 'font-size:12px; color:#e0e0e0; font-weight:bold;'
+          );
+        });
+
+        this._section.addMenuItem(item);
       });
     }
 
@@ -130,7 +320,7 @@ export default class GhostWindowExtension extends Extension {
     this._bindKeys();
     this._patchWindowTracker();
 
-    console.log('[GhostWindow] ativado');
+    console.log('[GhostWindow] enabled');
   }
 
   disable() {
@@ -148,7 +338,7 @@ export default class GhostWindowExtension extends Extension {
     this._hidden = [];
     this._settings = null;
 
-    console.log('[GhostWindow] desativado');
+    console.log('[GhostWindow] disabled');
   }
 
   // ── PATCH: filtra janelas escondidas do Alt+Tab e Overview ──
@@ -285,9 +475,9 @@ export default class GhostWindowExtension extends Extension {
     this._updateBadge();
 
     try {
-      Main.notify(`👻 ${appName}`, 'Escondido — Ctrl+Alt+K para restaurar');
+      Main.notify(`👻 ${appName}`, 'Hidden — Ctrl+Alt+K to release');
     } catch (_) {}
-    console.log(`[GhostWindow] escondeu: ${appName}`);
+    console.log(`[GhostWindow] hidden: ${appName}`);
   }
 
   // ── RESTORE ─────────────────────────────────────────────────
@@ -305,7 +495,7 @@ export default class GhostWindowExtension extends Extension {
 
     this._hidden.splice(idx, 1);
     this._updateBadge();
-    console.log(`[GhostWindow] restaurou: ${appName}`);
+    console.log(`[GhostWindow] released: ${appName}`);
   }
 
   restoreAll() {

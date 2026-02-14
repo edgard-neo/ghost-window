@@ -26,25 +26,7 @@ Like the old MSN Messenger or Discord — the window disappears from everything 
 
 ## 📸 How it looks
 
-```
-┌─────────────────────────────────────────────┐
-│  Activities   App1   App2        👻 2  ...  │  ← panel
-└─────────────────────────────────────────────┘
-
-Click 👻 →
-┌──────────────────────────────┐
-│  👻 Hidden Windows            │
-│  ──────────────────────────  │
-│  Google Chrome — YouTube     │  ← click to restore
-│  Visual Studio Code          │
-│  ──────────────────────────  │
-│  Show all                    │
-│  ──────────────────────────  │
-│  Ctrl+Alt+J hides · Ctrl+... │
-│  ──────────────────────────  │
-│  ⏻ Disable Ghost Window      │
-└──────────────────────────────┘
-```
+![Preview](assets/image.png)
 
 ---
 
@@ -73,16 +55,10 @@ chmod +x install.sh
 
 # 4. Enable the extension
 gnome-extensions enable ghost-window@ghostwindow.local
-```
 
-### Manual install
+# 5. restart
+gnome-session-quit --logout --no-prompt
 
-```bash
-INSTALL_DIR="$HOME/.local/share/gnome-shell/extensions/ghost-window@ghostwindow.local"
-mkdir -p "$INSTALL_DIR/schemas"
-cp extension.js prefs.js metadata.json "$INSTALL_DIR/"
-cp schemas/*.xml "$INSTALL_DIR/schemas/"
-glib-compile-schemas "$INSTALL_DIR/schemas/"
 ```
 
 ---
@@ -115,7 +91,6 @@ glib-compile-schemas "$INSTALL_DIR/schemas/"
 
 4. To disable:
    → Click 👻 → "⏻ Disable Ghost Window"
-   → All windows are automatically restored first
 ```
 
 ---
@@ -223,15 +198,6 @@ journalctl -f -o cat /usr/bin/gnome-shell 2>/dev/null | grep GhostWindow
 # After changes on X11: Alt+F2 → 'r' → Enter
 ```
 
-**Open issues / help wanted:**
-
-- [ ] Hide from Overview (Super key) workspace thumbnails
-- [ ] Per-app auto-hide rules
-- [ ] Keyboard shortcut recorder widget in prefs
-- [ ] Support for GNOME 44
-
-Please **open an issue** before submitting a large PR so we can align on the approach.
-
 ---
 
 ## 📋 Known Limitations
@@ -249,43 +215,3 @@ Please **open an issue** before submitting a large PR so we can align on the app
 Licensed under the **GNU General Public License v3.0** — see [LICENSE](LICENSE).
 
 ---
-
-## 🇧🇷 Português
-
-### O que faz
-
-Extensão do GNOME Shell que esconde qualquer janela do **Alt+Tab**, **Overview** e **Dock** com um atalho de teclado. O processo continua rodando — ideal para deixar o **Chrome com YouTube** tocando em segundo plano sem aparecer em lugar nenhum.
-
-### Instalação rápida
-
-```bash
-git clone https://github.com/edgard-neo/ghost-window.git
-cd ghost-window
-chmod +x install.sh
-./install.sh
-# Faça logout e login (necessário no Wayland)
-gnome-extensions enable ghost-window@ghostwindow.local
-```
-
-### Atalhos padrão
-
-| Atalho           | Ação                     |
-| ---------------- | ------------------------ |
-| `Ctrl + Alt + J` | Esconde a janela em foco |
-| `Ctrl + Alt + K` | Abre menu para restaurar |
-| Clique no 👻     | Abre menu para restaurar |
-| Menu → ⏻         | Desativa a extensão      |
-
-### Como usar no dia a dia
-
-1. Abre o Chrome com YouTube tocando
-2. Pressiona `Ctrl+Alt+J` → Chrome some do Alt+Tab
-3. Áudio e vídeo continuam normalmente
-4. Clica no 👻 no painel → seleciona o Chrome → janela volta
-
----
-
-<p align="center">
-  Made with ☕ on Zorin OS &nbsp;·&nbsp; GPL-3.0 &nbsp;·&nbsp;
-  <a href="https://github.com/edgard-neo/ghost-window">github.com/edgard-neo/ghost-window</a>
-</p>

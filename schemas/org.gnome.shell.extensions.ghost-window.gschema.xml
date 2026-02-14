@@ -5,14 +5,14 @@
 
     <key name="hide-shortcut" type="as">
       <default><![CDATA[['<Control><Alt>j']]]></default>
-      <summary>Atalho para esconder/mostrar janela</summary>
-      <description>Tecla de atalho para esconder a janela ativa do Alt+Tab e Overview. Padrão: Ctrl+Alt+J</description>
+      <summary>Shortcut to hide the active window</summary>
+      <description>Keyboard shortcut to hide the focused window from Alt+Tab and Overview. Default: Ctrl+Alt+J</description>
     </key>
 
     <key name="restore-shortcut" type="as">
       <default><![CDATA[['<Control><Alt>k']]]></default>
-      <summary>Atalho para mostrar lista de janelas escondidas</summary>
-      <description>Abre o menu para restaurar janelas escondidas. Padrão: Ctrl+Alt+K</description>
+      <summary>Shortcut to open the release menu</summary>
+      <description>Opens the panel menu to release hidden windows. Default: Ctrl+Alt+K</description>
     </key>
 
   </schema>
