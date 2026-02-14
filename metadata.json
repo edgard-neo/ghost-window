@@ -1,0 +1,9 @@
+{
+  "name": "Ghost Window",
+  "description": "Esconde qualquer janela do Alt+Tab e do Overview com um atalho. Ideal para deixar o Chrome com YouTube rodando em segundo plano sem aparecer em lugar nenhum.",
+  "uuid": "ghost-window@ghostwindow.local",
+  "version": 1,
+  "shell-version": ["45", "46", "47"],
+  "url": "https://github.com/seu-usuario/ghost-window",
+  "settings-schema": "org.gnome.shell.extensions.ghost-window"
+}

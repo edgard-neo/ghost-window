@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.ghost-window"
+          path="/org/gnome/shell/extensions/ghost-window/">
+
+    <key name="hide-shortcut" type="as">
+      <default><![CDATA[['<Control><Alt>j']]]></default>
+      <summary>Atalho para esconder/mostrar janela</summary>
+      <description>Tecla de atalho para esconder a janela ativa do Alt+Tab e Overview. Padrão: Ctrl+Alt+J</description>
+    </key>
+
+    <key name="restore-shortcut" type="as">
+      <default><![CDATA[['<Control><Alt>k']]]></default>
+      <summary>Atalho para mostrar lista de janelas escondidas</summary>
+      <description>Abre o menu para restaurar janelas escondidas. Padrão: Ctrl+Alt+K</description>
+    </key>
+
+  </schema>
+</schemalist>
