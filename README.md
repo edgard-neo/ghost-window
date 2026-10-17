@@ -7,7 +7,7 @@
 
 # 👻 Ghost Window
 
-**Conceal any window from your screen, Alt+Tab, and Overview — without closing it.**
+**Conceal any window from your screen, Taskbar/Dock, Alt+Tab, and Overview — without closing it.**
 
 [![GNOME Shell](https://img.shields.io/badge/GNOME_Shell-45%20%7C%2046%20%7C%2047-4A86CF?style=flat-square&logo=gnome&logoColor=white)](https://extensions.gnome.org)
 [![Wayland](https://img.shields.io/badge/Wayland-supported-success?style=flat-square)](#)
@@ -27,7 +27,7 @@
 - **Conceal on demand:** Press `Ctrl + Alt + J` to instantly hide the focused window.
 - **🚨 Boss Key / Panic Mode:** Press `Ctrl + Alt + Escape` to conceal all open windows in one tap.
 - **Background persistence:** Audio, downloads, and processes keep running silently.
-- **Complete invisibility:** Excluded from `Alt + Tab`, Dash, and the GNOME Overview (`Super` key).
+- **Complete invisibility:** Excluded from `Alt + Tab`, Taskbar (Dash / Dock / Panels), and the GNOME Overview (`Super` key).
 - **Top Panel Menu:** Restore individual windows, restore all at once, or close them directly.
 - **Interactive Libadwaita Preferences:** Click to record your custom shortcuts with native key detection.
 

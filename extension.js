@@ -9,6 +9,7 @@
 
 import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
 import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
@@ -412,6 +413,7 @@ export default class GhostWindowExtension extends Extension {
     this._registerKeybindings();
     this._patchAltTabSwitcher();
     this._patchOverview();
+    this._patchTaskbar();
 
     // Rebind shortcuts if preferences change
     this._settingsSignalIds.push(
@@ -443,9 +445,10 @@ export default class GhostWindowExtension extends Extension {
     // 2. Unregister keyboard shortcuts
     this._unregisterKeybindings();
 
-    // 3. Remove switcher and overview patches
+    // 3. Remove switcher, overview and taskbar patches
     this._unpatchAltTabSwitcher();
     this._unpatchOverview();
+    this._unpatchTaskbar();
 
     // 4. Restore any concealed windows
     this.restoreAll();
@@ -550,6 +553,201 @@ export default class GhostWindowExtension extends Extension {
     } catch (_) {}
   }
 
+  // ── Taskbar Concealment ───────────────────────────────────────────────────
+  _patchTaskbar() {
+    const self = this;
+
+    // 1. Meta.Window.prototype.is_skip_taskbar
+    this._originalIsSkipTaskbar = Meta.Window.prototype.is_skip_taskbar;
+    Meta.Window.prototype.is_skip_taskbar = function () {
+      if (self._isWindowHidden(this)) {
+        return true;
+      }
+      return self._originalIsSkipTaskbar.call(this);
+    };
+
+    // 2. Meta.Window.prototype.skip_taskbar property getter/setter
+    const origSkipTaskbarDesc = Object.getOwnPropertyDescriptor(
+      Meta.Window.prototype,
+      'skip_taskbar'
+    );
+    if (origSkipTaskbarDesc) {
+      this._originalSkipTaskbarDesc = origSkipTaskbarDesc;
+      Object.defineProperty(Meta.Window.prototype, 'skip_taskbar', {
+        get() {
+          if (self._isWindowHidden(this)) {
+            return true;
+          }
+          return origSkipTaskbarDesc.get.call(this);
+        },
+        set(val) {
+          origSkipTaskbarDesc.set?.call(this, val);
+        },
+        configurable: true,
+        enumerable: true,
+      });
+    }
+
+    // 3. Shell.App.prototype.get_windows
+    this._originalShellAppGetWindows = Shell.App.prototype.get_windows;
+    Shell.App.prototype.get_windows = function () {
+      const windows = self._originalShellAppGetWindows.call(this);
+      return windows.filter(win => !self._isWindowHidden(win));
+    };
+
+    // 4. Shell.App.prototype.get_n_windows
+    this._originalShellAppGetNWindows = Shell.App.prototype.get_n_windows;
+    Shell.App.prototype.get_n_windows = function () {
+      return this.get_windows().length;
+    };
+
+    // 5. Shell.App.prototype.get_state
+    this._originalShellAppGetState = Shell.App.prototype.get_state;
+    Shell.App.prototype.get_state = function () {
+      const windows = this.get_windows();
+      if (windows.length === 0) {
+        return Shell.AppState.STOPPED;
+      }
+      return self._originalShellAppGetState.call(this);
+    };
+
+    // 6. Shell.App.prototype.state property descriptor
+    const origAppStateDesc = Object.getOwnPropertyDescriptor(
+      Shell.App.prototype,
+      'state'
+    );
+    if (origAppStateDesc) {
+      this._originalAppStateDesc = origAppStateDesc;
+      Object.defineProperty(Shell.App.prototype, 'state', {
+        get() {
+          const windows = this.get_windows();
+          if (windows.length === 0) {
+            return Shell.AppState.STOPPED;
+          }
+          return origAppStateDesc.get.call(this);
+        },
+        configurable: true,
+        enumerable: true,
+      });
+    }
+
+    // 7. Shell.App.prototype.is_on_workspace
+    this._originalShellAppIsOnWorkspace = Shell.App.prototype.is_on_workspace;
+    Shell.App.prototype.is_on_workspace = function (workspace) {
+      const windows = this.get_windows();
+      return windows.some(
+        w => w.get_workspace() === workspace || w.is_on_all_workspaces()
+      );
+    };
+
+    // 8. Meta.Workspace.prototype.list_windows
+    this._originalWorkspaceListWindows = Meta.Workspace.prototype.list_windows;
+    Meta.Workspace.prototype.list_windows = function () {
+      const windows = self._originalWorkspaceListWindows.call(this);
+      return windows.filter(win => !self._isWindowHidden(win));
+    };
+  }
+
+  _unpatchTaskbar() {
+    if (this._originalIsSkipTaskbar) {
+      Meta.Window.prototype.is_skip_taskbar = this._originalIsSkipTaskbar;
+      this._originalIsSkipTaskbar = null;
+    }
+
+    if (this._originalSkipTaskbarDesc) {
+      Object.defineProperty(
+        Meta.Window.prototype,
+        'skip_taskbar',
+        this._originalSkipTaskbarDesc
+      );
+      this._originalSkipTaskbarDesc = null;
+    }
+
+    if (this._originalShellAppGetWindows) {
+      Shell.App.prototype.get_windows = this._originalShellAppGetWindows;
+      this._originalShellAppGetWindows = null;
+    }
+
+    if (this._originalShellAppGetNWindows) {
+      Shell.App.prototype.get_n_windows = this._originalShellAppGetNWindows;
+      this._originalShellAppGetNWindows = null;
+    }
+
+    if (this._originalShellAppGetState) {
+      Shell.App.prototype.get_state = this._originalShellAppGetState;
+      this._originalShellAppGetState = null;
+    }
+
+    if (this._originalAppStateDesc) {
+      Object.defineProperty(
+        Shell.App.prototype,
+        'state',
+        this._originalAppStateDesc
+      );
+      this._originalAppStateDesc = null;
+    }
+
+    if (this._originalShellAppIsOnWorkspace) {
+      Shell.App.prototype.is_on_workspace = this._originalShellAppIsOnWorkspace;
+      this._originalShellAppIsOnWorkspace = null;
+    }
+
+    if (this._originalWorkspaceListWindows) {
+      Meta.Workspace.prototype.list_windows = this._originalWorkspaceListWindows;
+      this._originalWorkspaceListWindows = null;
+    }
+  }
+
+  _syncTaskbars(window) {
+    const doSync = () => {
+      try {
+        const tracker = Shell.WindowTracker.get_default();
+        const app = tracker?.get_window_app(window);
+
+        // Notify window skip-taskbar property change
+        window.notify?.('skip-taskbar');
+
+        // Notify app and app system of state / window changes
+        if (app) {
+          app.emit?.('windows-changed');
+          app.notify?.('state');
+          const appSystem = Shell.AppSystem.get_default();
+          appSystem?.emit?.('app-state-changed', app);
+        }
+
+        // Notify Zorin Taskbar (zorin-taskbar@zorinos.com)
+        if (global.zorinTaskbar?.panels) {
+          for (const panel of global.zorinTaskbar.panels) {
+            panel.taskbar?._queueRedisplay?.();
+          }
+        }
+
+        // Notify Dash to Panel (if present)
+        if (global.dashToPanel?.panels) {
+          for (const panel of global.dashToPanel.panels) {
+            panel.taskbar?._queueRedisplay?.();
+          }
+        }
+
+        // Notify GNOME Shell native Dash / Dock
+        if (Main.overview?.dash?._redisplay) {
+          Main.overview.dash._redisplay();
+        }
+      } catch (err) {
+        console.error(`[GhostWindow] Taskbar sync error: ${err.message}`);
+      }
+    };
+
+    // Execute immediately
+    doSync();
+
+    // Also execute on idle loop to catch any post-minimize asynchronous state transitions
+    GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+      doSync();
+      return GLib.SOURCE_REMOVE;
+    });
+  }
+
   _isWindowHidden(window) {
     return this._hiddenWindows.some(item => item.window === window);
   }
@@ -642,6 +840,7 @@ export default class GhostWindowExtension extends Extension {
     });
 
     this._syncOverviewWindow(window, true);
+    this._syncTaskbars(window);
     this._syncBadge();
     return true;
   }
@@ -702,6 +901,7 @@ export default class GhostWindowExtension extends Extension {
 
     this._hiddenWindows.splice(itemIndex, 1);
     this._syncOverviewWindow(window, false);
+    this._syncTaskbars(window);
     this._syncBadge();
     console.log(`[GhostWindow] Restored: ${appName}`);
   }
@@ -719,6 +919,7 @@ export default class GhostWindowExtension extends Extension {
       } catch (_) {}
       this._hiddenWindows.splice(itemIndex, 1);
       this._syncOverviewWindow(window, false);
+      this._syncTaskbars(window);
       this._syncBadge();
     }
   }

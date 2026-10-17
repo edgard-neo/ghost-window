@@ -7,7 +7,7 @@
 
 # 👻 Ghost Window
 
-**Oculte qualquer janela da tela, do Alt+Tab e do Overview — sem fechar o programa.**
+**Oculte qualquer janela da tela, da barra de tarefas (Taskbar/Dock), do Alt+Tab e do Overview — sem fechar o programa.**
 
 [![GNOME Shell](https://img.shields.io/badge/GNOME_Shell-45%20%7C%2046%20%7C%2047-4A86CF?style=flat-square&logo=gnome&logoColor=white)](https://extensions.gnome.org)
 [![Wayland](https://img.shields.io/badge/Wayland-suportado-success?style=flat-square)](#)
@@ -27,7 +27,7 @@
 - **Oculte sob demanda:** Pressione `Ctrl + Alt + J` para esconder a janela em foco imediatamente.
 - **🚨 Modo Pânico (Boss Key):** Pressione `Ctrl + Alt + Escape` para ocultar todas as janelas abertas de uma só vez.
 - **Segundo plano ativo:** Áudio, downloads e compilações continuam executando silenciosamente.
-- **Invisibilidade completa:** Fora do `Alt + Tab`, da barra de favoritos e da visão geral do GNOME (Overview / tecla `Super`).
+- **Invisibilidade completa:** Fora do `Alt + Tab`, da barra de tarefas (Taskbar/Dock/Dash) e da visão geral do GNOME (Overview / tecla `Super`).
 - **Menu no Painel Superior:** Restaure janelas individualmente, restaure todas ou encerre processos diretamente.
 - **Configurações Interativas em Libadwaita:** Clique e pressione as teclas para gravar novos atalhos com detecção nativa.
 
