@@ -1,57 +1,43 @@
-#!/bin/bash
-# ─────────────────────────────────────────────────────────────
-# Ghost Window — Script de instalação
-# ─────────────────────────────────────────────────────────────
-set -e
+#!/usr/bin/env bash
+# ─────────────────────────────────────────────────────────────────────────────
+# Ghost Window — Installer Script
+# ─────────────────────────────────────────────────────────────────────────────
+set -euo pipefail
 
 UUID="ghost-window@ghostwindow.local"
 INSTALL_DIR="$HOME/.local/share/gnome-shell/extensions/$UUID"
 SCHEMA_DIR="$INSTALL_DIR/schemas"
+ICONS_DIR="$INSTALL_DIR/icons"
 
-echo ""
-echo "👻 Ghost Window — Instalador"
-echo "────────────────────────────"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# 1. Cria diretório de destino
-echo "→ Criando diretório da extensão..."
+echo "👻 Installing Ghost Window ($UUID)..."
+
+# 1. Prepare target directories
 mkdir -p "$INSTALL_DIR"
 mkdir -p "$SCHEMA_DIR"
+mkdir -p "$ICONS_DIR"
 
-# 2. Copia arquivos
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-echo "→ Copiando arquivos..."
+# 2. Copy extension files
 cp "$SCRIPT_DIR/metadata.json"  "$INSTALL_DIR/"
 cp "$SCRIPT_DIR/extension.js"   "$INSTALL_DIR/"
 cp "$SCRIPT_DIR/prefs.js"       "$INSTALL_DIR/"
+cp "$SCRIPT_DIR/stylesheet.css" "$INSTALL_DIR/" 2>/dev/null || true
 cp "$SCRIPT_DIR/schemas/"*.xml  "$SCHEMA_DIR/"
+cp "$SCRIPT_DIR/icons/"*.svg    "$ICONS_DIR/" 2>/dev/null || true
 
-# 3. Compila o schema GSettings
-echo "→ Compilando schema GSettings..."
+# 3. Compile schemas
+echo "→ Compiling GSettings schemas..."
 glib-compile-schemas "$SCHEMA_DIR"
 
-echo ""
-echo "✅ Extensão instalada em:"
+echo "✅ Extension installed successfully at:"
 echo "   $INSTALL_DIR"
 echo ""
-echo "─────────────────────────────────────────────────────────"
-echo "PRÓXIMOS PASSOS:"
-echo ""
-echo "  1. Recarregue o GNOME Shell:"
-echo ""
-echo "     • Se estiver no X11:"
-echo "       Pressione Alt+F2, digite 'r' e Enter"
-echo ""
-echo "     • Se estiver no Wayland:"
-echo "       Faça logout e login novamente"
-echo ""
-echo "  2. Ative a extensão:"
-echo "     gnome-extensions enable $UUID"
-echo ""
-echo "  3. Use os atalhos:"
-echo "     Super+\`        → esconde a janela ativa"
-echo "     Super+Shift+\`  → abre lista para restaurar"
-echo "     👻 no painel   → clique para ver/restaurar janelas"
-echo ""
-echo "  4. (Opcional) Configure atalhos personalizados:"
-echo "     gnome-extensions prefs $UUID"
-echo "─────────────────────────────────────────────────────────"
+echo "Next steps:"
+echo "  • Wayland: Log out and log back in."
+echo "  • X11: Press Alt+F2, type 'r', and press Enter."
+echo "  • Enable extension: gnome-extensions enable $UUID"
+echo "  • Default shortcuts:"
+echo "      Ctrl+Alt+J      → Conceal active window"
+echo "      Ctrl+Alt+Escape → Panic Mode (Conceal all open windows)"
+echo "      Ctrl+Alt+K      → Open restore menu"

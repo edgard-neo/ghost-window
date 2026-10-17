@@ -1,0 +1,63 @@
+/*
+ * Ghost Window — Stylesheet
+ * Custom styles complementing GNOME Shell's native theme
+ */
+
+.ghost-badge {
+  font-size: 9px;
+  font-weight: bold;
+  color: #ffffff;
+  background-color: #3584e4;
+  border-radius: 9px;
+  padding: 1px 5px;
+  margin-left: 2px;
+}
+
+.ghost-header-box {
+  padding: 4px 2px;
+}
+
+.ghost-header-title {
+  font-weight: bold;
+  font-size: 12px;
+}
+
+.ghost-empty-box {
+  padding: 16px 8px;
+}
+
+.ghost-item-row {
+  padding: 3px 0;
+}
+
+.ghost-app-name {
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.ghost-app-title {
+  font-size: 10px;
+  margin-top: 1px;
+}
+
+.ghost-close-btn {
+  padding: 4px 6px;
+  border-radius: 6px;
+  color: #888888;
+  transition: all 150ms ease-in-out;
+}
+
+.ghost-close-btn:hover {
+  color: #f38ba8;
+  background-color: rgba(243, 139, 168, 0.15);
+}
+
+.ghost-action-accent {
+  color: #3584e4;
+  font-size: 11px;
+}
+
+.ghost-action-danger {
+  color: #f38ba8;
+  font-size: 11px;
+}

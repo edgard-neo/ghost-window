@@ -1,10 +1,14 @@
 /**
  * Ghost Window — GNOME Shell Extension
- * Compatível com GNOME Shell 45, 46, 47 — Wayland + X11
- * uuid: ghost-window@ghostwindow.local
+ *
+ * Conceals active windows from Alt+Tab, Dash, and Overview while
+ * keeping processes and audio running in the background.
+ *
+ * Supported GNOME Shell versions: 45, 46, 47 (Wayland & X11)
  */
 
 import Clutter from 'gi://Clutter';
+import Gio from 'gi://Gio';
 import GObject from 'gi://GObject';
 import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
@@ -14,185 +18,305 @@ import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
+import * as Workspace from 'resource:///org/gnome/shell/ui/workspace.js';
 
-// ─────────────────────────────────────────────────────────────
-// INDICATOR
-// ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Constants
+// ─────────────────────────────────────────────────────────────────────────────
+const SCHEMA_KEY_HIDE = 'hide-shortcut';
+const SCHEMA_KEY_RESTORE = 'restore-shortcut';
+const SCHEMA_KEY_PANIC = 'panic-shortcut';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GhostIndicator (Top Panel Button & Popup Menu)
+// ─────────────────────────────────────────────────────────────────────────────
 const GhostIndicator = GObject.registerClass(
   class GhostIndicator extends PanelMenu.Button {
     _init(extension) {
       super._init(0.0, 'Ghost Window');
-      this._ext = extension;
+      this._extension = extension;
 
-      this._icon = new St.Label({
-        text: '👻',
-        y_align: Clutter.ActorAlign.CENTER,
-        style: 'font-size: 14px; padding: 0 4px;',
+      // Status bar icon
+      const iconFile = extension.dir
+        .get_child('icons')
+        .get_child('ghost-symbolic.svg');
+      this._iconFile = Gio.FileIcon.new(iconFile);
+
+      this._statusIcon = new St.Icon({
+        gicon: this._iconFile,
+        style_class: 'system-status-icon',
       });
-      this.add_child(this._icon);
+      this.add_child(this._statusIcon);
 
-      this._badge = new St.Label({
+      // Concealed windows counter badge
+      this._counterBadge = new St.Label({
         text: '',
         y_align: Clutter.ActorAlign.CENTER,
-        style:
-          'font-size:9px;font-weight:bold;color:#fff;background-color:#e03030;border-radius:8px;padding:1px 5px;margin-left:-4px;',
+        style_class: 'ghost-badge',
       });
-      this._badge.hide();
-      this.add_child(this._badge);
+      this._counterBadge.hide();
+      this.add_child(this._counterBadge);
 
-      this._buildMenu();
-      this.menu.connect('open-state-changed', (_m, open) => {
-        if (open) this._refreshMenu();
+      this._setupMenu();
+
+      // Refresh list whenever menu is opened
+      this.menu.connect('open-state-changed', (_menu, isOpen) => {
+        if (isOpen) {
+          this._renderMenuList();
+        }
       });
     }
 
-    _buildMenu() {
-      // ── Header ──────────────────────────────────────────────
-      const header = new PopupMenu.PopupBaseMenuItem({
+    /**
+     * Constructs the static layout of the popup menu.
+     */
+    _setupMenu() {
+      // 1. Header Section
+      const headerItem = new PopupMenu.PopupBaseMenuItem({
         reactive: false,
         can_focus: false,
       });
-      const headerBox = new St.BoxLayout({
+
+      const headerContainer = new St.BoxLayout({
         vertical: false,
-        style: 'padding: 4px 2px 6px 2px;',
-      });
-
-      const headerIcon = new St.Label({
-        text: '👻',
-        style: 'font-size:15px; margin-right:8px;',
+        x_expand: true,
         y_align: Clutter.ActorAlign.CENTER,
+        style_class: 'ghost-header-box',
       });
 
-      const headerTextBox = new St.BoxLayout({ vertical: true });
+      const headerIcon = new St.Icon({
+        gicon: this._iconFile,
+        icon_size: 16,
+        style: 'margin-right: 8px;',
+      });
 
       const headerTitle = new St.Label({
         text: 'Ghost Window',
-        style: 'font-weight:bold; font-size:12px; color:#ffffff;',
+        style_class: 'ghost-header-title',
+        y_align: Clutter.ActorAlign.CENTER,
       });
 
-      this._headerSub = new St.Label({
-        text: 'No hidden windows',
-        style: 'font-size:10px; color:#666;',
+      this._headerSubtitle = new St.Label({
+        text: 'No concealed windows',
+        style_class: 'dim-label',
+        style: 'font-size: 11px; margin-left: 12px;',
+        x_expand: true,
+        x_align: Clutter.ActorAlign.END,
+        y_align: Clutter.ActorAlign.CENTER,
       });
 
-      headerTextBox.add_child(headerTitle);
-      headerTextBox.add_child(this._headerSub);
-      headerBox.add_child(headerIcon);
-      headerBox.add_child(headerTextBox);
-      header.add_child(headerBox);
-      this.menu.addMenuItem(header);
+      headerContainer.add_child(headerIcon);
+      headerContainer.add_child(headerTitle);
+      headerContainer.add_child(this._headerSubtitle);
+      headerItem.add_child(headerContainer);
+      this.menu.addMenuItem(headerItem);
 
       this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
-      // ── Lista dinâmica de janelas ────────────────────────────
-      this._section = new PopupMenu.PopupMenuSection();
-      this.menu.addMenuItem(this._section);
-
-      // ── Footer ──────────────────────────────────────────────
-      this._footerSep = new PopupMenu.PopupSeparatorMenuItem();
-      this.menu.addMenuItem(this._footerSep);
-
-      // Mostrar todas
-      const restoreAll = this.menu.addAction('↩  Release all', () => {
-        this._ext.restoreAll();
-        this.menu.close();
-      });
-      restoreAll.label.set_style('font-size:11px; color:#89b4fa;');
-
-      // Dica de atalhos
-      const hint = new PopupMenu.PopupBaseMenuItem({
-        reactive: false,
-        can_focus: false,
-      });
-      const hintLabel = new St.Label({
-        text: '⌨  Ctrl+Alt+J  hide   ·   Ctrl+Alt+K  release',
-        style: 'font-size:9px; color:#444; padding: 2px 0 4px 0;',
-      });
-      hint.add_child(hintLabel);
-      this.menu.addMenuItem(hint);
+      // 2. Dynamic Window List Section
+      this._windowListSection = new PopupMenu.PopupMenuSection();
+      this.menu.addMenuItem(this._windowListSection);
 
       this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
-      // Desativar
-      const disable = this.menu.addAction('⏻  Disable Ghost Window', () => {
-        this.menu.close();
-        this._ext.restoreAll();
-        Main.extensionManager.disableExtension(
-          'ghost-window@ghostwindow.local'
-        );
+      // 3. Action: Conceal all visible (Panic Mode)
+      const panicItem = new PopupMenu.PopupBaseMenuItem();
+      const panicBox = new St.BoxLayout({
+        vertical: false,
+        x_expand: true,
+        y_align: Clutter.ActorAlign.CENTER,
       });
-      disable.label.set_style('font-size:11px; color:#f38ba8;');
+      const panicIcon = new St.Icon({
+        icon_name: 'view-conceal-symbolic',
+        icon_size: 14,
+        style: 'margin-right: 8px;',
+        style_class: 'dim-label',
+      });
+      const panicLabel = new St.Label({
+        text: 'Panic: Conceal all open windows',
+        style_class: 'dim-label',
+        y_align: Clutter.ActorAlign.CENTER,
+      });
+      panicBox.add_child(panicIcon);
+      panicBox.add_child(panicLabel);
+      panicItem.add_child(panicBox);
+      panicItem.connect('activate', () => {
+        this.menu.close();
+        this._extension.triggerPanicMode();
+      });
+      this.menu.addMenuItem(panicItem);
+
+      // 4. Action: Release all windows
+      const restoreAllItem = new PopupMenu.PopupBaseMenuItem();
+      const restoreAllBox = new St.BoxLayout({
+        vertical: false,
+        x_expand: true,
+        y_align: Clutter.ActorAlign.CENTER,
+      });
+      const restoreAllIcon = new St.Icon({
+        icon_name: 'edit-undo-symbolic',
+        icon_size: 14,
+        style: 'margin-right: 8px;',
+        style_class: 'ghost-action-accent',
+      });
+      const restoreAllLabel = new St.Label({
+        text: 'Release all windows',
+        style_class: 'ghost-action-accent',
+        y_align: Clutter.ActorAlign.CENTER,
+      });
+      restoreAllBox.add_child(restoreAllIcon);
+      restoreAllBox.add_child(restoreAllLabel);
+      restoreAllItem.add_child(restoreAllBox);
+      restoreAllItem.connect('activate', () => {
+        this._extension.restoreAll();
+        this.menu.close();
+      });
+      this.menu.addMenuItem(restoreAllItem);
+
+      // 5. Action: Open Preferences
+      const preferencesItem = new PopupMenu.PopupBaseMenuItem();
+      const preferencesBox = new St.BoxLayout({
+        vertical: false,
+        x_expand: true,
+        y_align: Clutter.ActorAlign.CENTER,
+      });
+      const preferencesIcon = new St.Icon({
+        icon_name: 'preferences-system-symbolic',
+        icon_size: 14,
+        style: 'margin-right: 8px;',
+        style_class: 'dim-label',
+      });
+      const preferencesLabel = new St.Label({
+        text: 'Settings',
+        style_class: 'dim-label',
+        style: 'font-size: 11px;',
+        y_align: Clutter.ActorAlign.CENTER,
+      });
+      preferencesBox.add_child(preferencesIcon);
+      preferencesBox.add_child(preferencesLabel);
+      preferencesItem.add_child(preferencesBox);
+      preferencesItem.connect('activate', () => {
+        this.menu.close();
+        this._extension.openPreferences();
+      });
+      this.menu.addMenuItem(preferencesItem);
+
+      this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+
+      // 6. Action: Disable Extension
+      const disableItem = new PopupMenu.PopupBaseMenuItem();
+      const disableBox = new St.BoxLayout({
+        vertical: false,
+        x_expand: true,
+        y_align: Clutter.ActorAlign.CENTER,
+      });
+      const disableIcon = new St.Icon({
+        icon_name: 'system-shutdown-symbolic',
+        icon_size: 14,
+        style: 'margin-right: 8px;',
+        style_class: 'ghost-action-danger',
+      });
+      const disableLabel = new St.Label({
+        text: 'Disable Ghost Window',
+        style_class: 'ghost-action-danger',
+        y_align: Clutter.ActorAlign.CENTER,
+      });
+      disableBox.add_child(disableIcon);
+      disableBox.add_child(disableLabel);
+      disableItem.add_child(disableBox);
+      disableItem.connect('activate', () => {
+        this.menu.close();
+        this._extension.restoreAll();
+        Main.extensionManager.disableExtension(this._extension.uuid);
+      });
+      this.menu.addMenuItem(disableItem);
     }
 
-    _refreshMenu() {
-      this._section.removeAll();
-      const hidden = this._ext.getHiddenWindows();
+    /**
+     * Renders active list of concealed windows or empty placeholder.
+     */
+    _renderMenuList() {
+      this._windowListSection.removeAll();
+      const hiddenWindows = this._extension.getHiddenWindows();
 
-      // Atualiza subtítulo do header
-      if (this._headerSub) {
-        this._headerSub.set_text(
-          hidden.length === 0
-            ? 'No hidden windows'
-            : `${hidden.length} hidden window${hidden.length > 1 ? 's' : ''}`
+      if (this._headerSubtitle) {
+        this._headerSubtitle.set_text(
+          hiddenWindows.length === 0
+            ? 'No concealed windows'
+            : `${hiddenWindows.length} concealed`
         );
       }
 
-      if (hidden.length === 0) {
-        const empty = new PopupMenu.PopupBaseMenuItem({
+      // Empty state
+      if (hiddenWindows.length === 0) {
+        const emptyItem = new PopupMenu.PopupBaseMenuItem({
           reactive: false,
           can_focus: false,
         });
         const emptyBox = new St.BoxLayout({
           vertical: true,
-          style: 'padding: 10px 4px;',
+          style_class: 'ghost-empty-box',
+          x_expand: true,
           x_align: Clutter.ActorAlign.CENTER,
         });
-        const emptyIcon = new St.Label({
-          text: '✦',
-          style: 'font-size:20px; color:#2a2a2a;',
+
+        const emptyIcon = new St.Icon({
+          icon_name: 'view-conceal-symbolic',
+          icon_size: 28,
+          style_class: 'dim-label',
         });
-        const emptyLabel = new St.Label({
-          text: 'Press Ctrl+Alt+J to hide a window',
-          style: 'font-size:10px; color:#444; margin-top:6px;',
+        const emptyTitle = new St.Label({
+          text: 'No concealed windows',
+          style_class: 'dim-label',
+          style: 'font-weight: bold; font-size: 12px; margin-top: 8px;',
         });
+        const emptyHint = new St.Label({
+          text: 'Press Ctrl+Alt+J to conceal active window',
+          style_class: 'dim-label',
+          style: 'font-size: 10px; margin-top: 2px;',
+        });
+
         emptyBox.add_child(emptyIcon);
-        emptyBox.add_child(emptyLabel);
-        empty.add_child(emptyBox);
-        this._section.addMenuItem(empty);
+        emptyBox.add_child(emptyTitle);
+        emptyBox.add_child(emptyHint);
+        emptyItem.add_child(emptyBox);
+        this._windowListSection.addMenuItem(emptyItem);
         return;
       }
 
-      hidden.forEach(({ win, appName, title }) => {
-        const item = new PopupMenu.PopupBaseMenuItem({ style_class: '' });
+      // Render items for each concealed window
+      hiddenWindows.forEach(({ window, appName, title }) => {
+        const menuItem = new PopupMenu.PopupBaseMenuItem();
 
-        const row = new St.BoxLayout({
+        const rowContainer = new St.BoxLayout({
           vertical: false,
           x_expand: true,
-          style: 'padding: 3px 0;',
+          y_align: Clutter.ActorAlign.CENTER,
+          style_class: 'ghost-item-row',
         });
 
-        // ── Ícone real do app ──────────────────────────────────
+        // App Icon
         let appIconWidget;
         try {
           const tracker = Shell.WindowTracker.get_default();
-          const app = tracker.get_window_app(win);
+          const app = tracker.get_window_app(window);
           if (app) {
-            appIconWidget = app.create_icon_texture(20);
-            appIconWidget.set_style('margin-right:10px; min-width:20px;');
+            appIconWidget = app.create_icon_texture(22);
+            appIconWidget.set_style('margin-right: 10px; min-width: 22px;');
           }
         } catch (_) {}
 
-        // Fallback: emoji genérico
         if (!appIconWidget) {
-          appIconWidget = new St.Label({
-            text: '▣',
-            style:
-              'font-size:16px; color:#555; margin-right:10px; min-width:20px;',
+          appIconWidget = new St.Icon({
+            icon_name: 'application-x-executable-symbolic',
+            icon_size: 20,
+            style: 'margin-right: 10px; min-width: 20px;',
+            style_class: 'dim-label',
             y_align: Clutter.ActorAlign.CENTER,
           });
         }
 
-        // ── Textos (nome + título separados) ───────────────────
+        // Window Details (App Name + Document Title)
         const textBox = new St.BoxLayout({
           vertical: true,
           x_expand: true,
@@ -201,11 +325,11 @@ const GhostIndicator = GObject.registerClass(
 
         const appLabel = new St.Label({
           text: appName,
-          style: 'font-size:12px; color:#e0e0e0; font-weight:bold;',
+          style_class: 'ghost-app-name',
         });
-        appLabel.clutter_text.ellipsize = 3; // PANGO_ELLIPSIZE_END
+        appLabel.clutter_text.ellipsize = 3;
 
-        const windowTitle = title
+        const cleanTitle = title
           ? title
               .replace(` — ${appName}`, '')
               .replace(` - ${appName}`, '')
@@ -214,316 +338,407 @@ const GhostIndicator = GObject.registerClass(
 
         textBox.add_child(appLabel);
 
-        if (windowTitle) {
+        if (cleanTitle) {
           const titleLabel = new St.Label({
-            text: windowTitle,
-            style: 'font-size:10px; color:#555; margin-top:1px;',
+            text: cleanTitle,
+            style_class: 'ghost-app-title dim-label',
           });
           titleLabel.clutter_text.ellipsize = 3;
           textBox.add_child(titleLabel);
         }
 
-        // ── Botão ✕ fechar (fecha a janela) ───────────────────
-        const closeBtn = new St.Button({
-          label: '✕',
-          style: `
-            font-size:11px;
-            color:#444;
-            background:transparent;
-            border:none;
-            padding: 2px 6px;
-            border-radius:4px;
-            margin-left:6px;
-          `,
+        // Close window button
+        const closeIcon = new St.Icon({
+          icon_name: 'window-close-symbolic',
+          icon_size: 13,
+        });
+        const closeButton = new St.Button({
+          child: closeIcon,
+          style_class: 'ghost-close-btn',
           y_align: Clutter.ActorAlign.CENTER,
           x_align: Clutter.ActorAlign.END,
         });
 
-        closeBtn.connect('clicked', () => {
+        closeButton.connect('clicked', () => {
           try {
-            win.delete(global.get_current_time());
+            window.delete(global.get_current_time());
           } catch (_) {}
-          this._ext._cleanup(win);
+          this._extension.cleanupWindow(window);
           this.menu.close();
         });
 
-        closeBtn.connect('enter-event', () => {
-          closeBtn.set_style(`
-            font-size:11px;
-            color:#f38ba8;
-            background:rgba(243,139,168,0.12);
-            border:none;
-            padding: 2px 6px;
-            border-radius:4px;
-            margin-left:6px;
-          `);
-        });
+        rowContainer.add_child(appIconWidget);
+        rowContainer.add_child(textBox);
+        rowContainer.add_child(closeButton);
+        menuItem.add_child(rowContainer);
 
-        closeBtn.connect('leave-event', () => {
-          closeBtn.set_style(`
-            font-size:11px;
-            color:#444;
-            background:transparent;
-            border:none;
-            padding: 2px 6px;
-            border-radius:4px;
-            margin-left:6px;
-          `);
-        });
-
-        row.add_child(appIconWidget);
-        row.add_child(textBox);
-        row.add_child(closeBtn);
-        item.add_child(row);
-
-        // Clicar no item = restaurar
-        item.connect('activate', () => {
-          this._ext.restoreWindow(win);
+        // Click row to restore window
+        menuItem.connect('activate', () => {
+          this._extension.restoreWindow(window);
           this.menu.close();
         });
 
-        // Hover no item inteiro
-        item.connect('notify::active', () => {
-          appLabel.set_style(
-            item.active
-              ? 'font-size:12px; color:#89b4fa; font-weight:bold;'
-              : 'font-size:12px; color:#e0e0e0; font-weight:bold;'
-          );
-        });
-
-        this._section.addMenuItem(item);
+        this._windowListSection.addMenuItem(menuItem);
       });
     }
 
+    /**
+     * Updates numeric badge displayed next to the panel icon.
+     * @param {number} count Number of concealed windows
+     */
     updateBadge(count) {
       if (count > 0) {
-        this._badge.set_text(String(count));
-        this._badge.show();
+        this._counterBadge.set_text(String(count));
+        this._counterBadge.show();
       } else {
-        this._badge.hide();
+        this._counterBadge.hide();
       }
     }
   }
 );
 
-// ─────────────────────────────────────────────────────────────
-// EXTENSION
-// ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// GhostWindowExtension (Main Extension Class)
+// ─────────────────────────────────────────────────────────────────────────────
 export default class GhostWindowExtension extends Extension {
   enable() {
     this._settings = this.getSettings();
-    this._hidden = [];
+    this._hiddenWindows = [];
     this._indicator = null;
-    this._keybindings = [];
+    this._registeredKeybindings = [];
+    this._settingsSignalIds = [];
 
-    this._addIndicator();
-    this._bindKeys();
-    this._patchWindowTracker();
+    this._createIndicator();
+    this._registerKeybindings();
+    this._patchAltTabSwitcher();
+    this._patchOverview();
 
-    console.log('[GhostWindow] enabled');
+    // Rebind shortcuts if preferences change
+    this._settingsSignalIds.push(
+      this._settings.connect(`changed::${SCHEMA_KEY_HIDE}`, () =>
+        this._registerKeybindings()
+      ),
+      this._settings.connect(`changed::${SCHEMA_KEY_RESTORE}`, () =>
+        this._registerKeybindings()
+      ),
+      this._settings.connect(`changed::${SCHEMA_KEY_PANIC}`, () =>
+        this._registerKeybindings()
+      )
+    );
+
+    console.log('[GhostWindow] Enabled successfully');
   }
 
   disable() {
-    this._unbindKeys();
-    this._unpatchWindowTracker();
-    this._removeIndicator();
+    // 1. Disconnect settings watchers
+    if (this._settings) {
+      this._settingsSignalIds.forEach(signalId => {
+        try {
+          this._settings.disconnect(signalId);
+        } catch (_) {}
+      });
+      this._settingsSignalIds = [];
+    }
+
+    // 2. Unregister keyboard shortcuts
+    this._unregisterKeybindings();
+
+    // 3. Remove switcher and overview patches
+    this._unpatchAltTabSwitcher();
+    this._unpatchOverview();
+
+    // 4. Restore any concealed windows
     this.restoreAll();
 
-    this._hidden.forEach(({ win, signalId }) => {
-      try {
-        win.disconnect(signalId);
-      } catch (_) {}
-    });
+    // 5. Remove indicator from status bar
+    this._destroyIndicator();
 
-    this._hidden = [];
+    // 6. Clean up state
+    this._hiddenWindows = [];
     this._settings = null;
 
-    console.log('[GhostWindow] disabled');
+    console.log('[GhostWindow] Disabled successfully');
   }
 
-  // ── PATCH: filtra janelas escondidas do Alt+Tab e Overview ──
-  // Técnica do hide-minimized: sobrescreve o filtro de janelas
-  // no WindowTracker que o GNOME usa para montar o switcher
-  _patchWindowTracker() {
-    const self = this;
-
-    // Guarda referência ao método original de filtragem
-    this._origGetApp = Shell.WindowTracker.prototype.get_window_app;
-
-    // Intercepta todas as consultas de janelas do workspace
-    // O truque: quando uma janela está na nossa lista _hidden,
-    // fazemos ela parecer "minimizada" para o switcher não exibi-la
-    this._displaySignal = global.display.connect(
+  // ── Alt+Tab Switcher Filter ───────────────────────────────────────────────
+  _patchAltTabSwitcher() {
+    // Keep window minimized if it requests attention while concealed
+    this._attentionSignalId = global.display.connect(
       'window-demands-attention',
-      (_display, win) => {
-        // Não deixa janelas escondidas voltarem por notificação
-        if (self._hidden.find(e => e.win === win)) {
-          win.minimize();
+      (_display, window) => {
+        if (this._isWindowHidden(window)) {
+          try {
+            window.minimize();
+          } catch (_) {}
         }
       }
     );
 
-    // Patch no overview: esconde janelas da nossa lista
-    const workspace = global.workspace_manager;
-    this._workspaceSignal = workspace.connect(
-      'workspace-added',
-      () => {} // placeholder — o filtro real está no _isHidden
-    );
-
-    // Patch principal: filtra o AppSwitcher
-    // Sobrescreve o método que lista janelas no Alt+Tab
-    this._origGetTabList = global.display.get_tab_list.bind(global.display);
+    // Filter concealed windows out of Alt+Tab list
+    this._originalGetTabList = global.display.get_tab_list.bind(global.display);
     global.display.get_tab_list = (type, workspace) => {
-      const windows = self._origGetTabList(type, workspace);
-      return windows.filter(w => !self._isHidden(w));
+      const windowList = this._originalGetTabList(type, workspace);
+      return windowList.filter(win => !this._isWindowHidden(win));
     };
   }
 
-  _unpatchWindowTracker() {
-    // Restaura get_tab_list
-    if (this._origGetTabList) {
-      global.display.get_tab_list = this._origGetTabList;
-      this._origGetTabList = null;
+  _unpatchAltTabSwitcher() {
+    if (this._originalGetTabList) {
+      global.display.get_tab_list = this._originalGetTabList;
+      this._originalGetTabList = null;
     }
 
-    if (this._displaySignal) {
-      global.display.disconnect(this._displaySignal);
-      this._displaySignal = null;
-    }
-
-    if (this._workspaceSignal) {
-      global.workspace_manager.disconnect(this._workspaceSignal);
-      this._workspaceSignal = null;
+    if (this._attentionSignalId) {
+      try {
+        global.display.disconnect(this._attentionSignalId);
+      } catch (_) {}
+      this._attentionSignalId = null;
     }
   }
 
-  _isHidden(win) {
-    return !!this._hidden.find(e => e.win === win);
+  // ── Overview (Activities / Super Key) Concealment ─────────────────────────
+  _patchOverview() {
+    const self = this;
+
+    // 1. Intercept Overview window clone check
+    this._originalIsOverviewWindow = Workspace.Workspace.prototype._isOverviewWindow;
+    Workspace.Workspace.prototype._isOverviewWindow = function (window) {
+      if (self._isWindowHidden(window)) {
+        return false;
+      }
+      return self._originalIsOverviewWindow.call(this, window);
+    };
+
+    // 2. Intercept Workspace window ownership check
+    this._originalIsMyWindow = Workspace.Workspace.prototype._isMyWindow;
+    Workspace.Workspace.prototype._isMyWindow = function (window) {
+      if (self._isWindowHidden(window)) {
+        return false;
+      }
+      return self._originalIsMyWindow.call(this, window);
+    };
   }
 
-  // ── INDICATOR ───────────────────────────────────────────────
-  _addIndicator() {
+  _unpatchOverview() {
+    if (this._originalIsOverviewWindow) {
+      Workspace.Workspace.prototype._isOverviewWindow = this._originalIsOverviewWindow;
+      this._originalIsOverviewWindow = null;
+    }
+
+    if (this._originalIsMyWindow) {
+      Workspace.Workspace.prototype._isMyWindow = this._originalIsMyWindow;
+      this._originalIsMyWindow = null;
+    }
+  }
+
+  _syncOverviewWindow(window, isHidden) {
+    try {
+      const workspacesDisplay =
+        Main.overview?._overview?.controls?.workspacesDisplay;
+      const workspacesViews = workspacesDisplay?._workspacesViews || [];
+
+      for (const view of workspacesViews) {
+        if (!view._workspaces) continue;
+        for (const ws of view._workspaces) {
+          if (isHidden) {
+            ws._doRemoveWindow?.(window);
+          } else {
+            ws._doAddWindow?.(window);
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  _isWindowHidden(window) {
+    return this._hiddenWindows.some(item => item.window === window);
+  }
+
+  // ── Indicator Management ──────────────────────────────────────────────────
+  _createIndicator() {
     this._indicator = new GhostIndicator(this);
     Main.panel.addToStatusArea(this.uuid, this._indicator, 1, 'right');
   }
 
-  _removeIndicator() {
+  _destroyIndicator() {
     if (this._indicator) {
       this._indicator.destroy();
       this._indicator = null;
     }
   }
 
-  // ── KEYBINDINGS ─────────────────────────────────────────────
-  _bindKeys() {
-    const map = {
-      'hide-shortcut': () => this._hideActive(),
-      'restore-shortcut': () => this._indicator?.menu.toggle(),
+  // ── Keybindings ───────────────────────────────────────────────────────────
+  _registerKeybindings() {
+    this._unregisterKeybindings();
+
+    const shortcutActions = {
+      [SCHEMA_KEY_HIDE]: () => this._hideActiveWindow(),
+      [SCHEMA_KEY_RESTORE]: () => this._indicator?.menu.toggle(),
+      [SCHEMA_KEY_PANIC]: () => this.triggerPanicMode(),
     };
 
-    for (const [name, handler] of Object.entries(map)) {
+    for (const [shortcutKey, actionHandler] of Object.entries(shortcutActions)) {
       try {
         Main.wm.addKeybinding(
-          name,
+          shortcutKey,
           this._settings,
           Meta.KeyBindingFlags.NONE,
           Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW,
-          handler
+          actionHandler
         );
-        this._keybindings.push(name);
-        console.log(`[GhostWindow] keybinding: ${name} OK`);
-      } catch (e) {
-        console.error(`[GhostWindow] keybinding ${name} ERRO: ${e.message}`);
+        this._registeredKeybindings.push(shortcutKey);
+      } catch (err) {
+        console.error(`[GhostWindow] Failed to register shortcut "${shortcutKey}": ${err.message}`);
       }
     }
   }
 
-  _unbindKeys() {
-    this._keybindings.forEach(k => {
+  _unregisterKeybindings() {
+    for (const shortcutKey of this._registeredKeybindings) {
       try {
-        Main.wm.removeKeybinding(k);
+        Main.wm.removeKeybinding(shortcutKey);
       } catch (_) {}
+    }
+    this._registeredKeybindings = [];
+  }
+
+  // ── Window Actions ────────────────────────────────────────────────────────
+  _concealWindow(window) {
+    if (!window || this._isWindowHidden(window)) {
+      return false;
+    }
+
+    const windowType = window.get_window_type();
+    const isSpecialType = [
+      Meta.WindowType.DESKTOP,
+      Meta.WindowType.DOCK,
+      Meta.WindowType.DIALOG,
+      Meta.WindowType.MODAL_DIALOG,
+    ].includes(windowType);
+
+    if (isSpecialType) {
+      return false;
+    }
+
+    const appName = this._getAppName(window);
+    const title = window.get_title() || '';
+
+    try {
+      window.minimize();
+    } catch (_) {
+      return false;
+    }
+
+    // Auto-cleanup if window is closed externally
+    const unmanagedSignalId = window.connect('unmanaged', () =>
+      this.cleanupWindow(window)
+    );
+
+    this._hiddenWindows.push({
+      window,
+      appName,
+      title,
+      signalId: unmanagedSignalId,
     });
-    this._keybindings = [];
+
+    this._syncOverviewWindow(window, true);
+    this._syncBadge();
+    return true;
   }
 
-  // ── HIDE ────────────────────────────────────────────────────
-  _hideActive() {
-    const win = global.display.focus_window;
-    if (!win) return;
+  _hideActiveWindow() {
+    const activeWindow = global.display.focus_window;
+    if (!activeWindow) return;
 
-    const type = win.get_window_type();
-    if (
-      [
-        Meta.WindowType.DESKTOP,
-        Meta.WindowType.DOCK,
-        Meta.WindowType.DIALOG,
-        Meta.WindowType.MODAL_DIALOG,
-      ].includes(type)
-    )
-      return;
+    const appName = this._getAppName(activeWindow);
+    const concealed = this._concealWindow(activeWindow);
 
-    if (this._isHidden(win)) return;
-
-    const appName = this._getAppName(win);
-    const title = win.get_title() || '';
-
-    win.minimize();
-
-    const signalId = win.connect('unmanaged', () => this._cleanup(win));
-    this._hidden.push({ win, appName, title, signalId });
-    this._updateBadge();
-
-    try {
-      Main.notify(`👻 ${appName}`, 'Hidden — Ctrl+Alt+K to release');
-    } catch (_) {}
-    console.log(`[GhostWindow] hidden: ${appName}`);
-  }
-
-  // ── RESTORE ─────────────────────────────────────────────────
-  restoreWindow(win) {
-    const idx = this._hidden.findIndex(e => e.win === win);
-    if (idx === -1) return;
-
-    const { signalId, appName } = this._hidden[idx];
-    try {
-      win.disconnect(signalId);
-    } catch (_) {}
-
-    win.unminimize();
-    win.activate(global.get_current_time());
-
-    this._hidden.splice(idx, 1);
-    this._updateBadge();
-    console.log(`[GhostWindow] released: ${appName}`);
-  }
-
-  restoreAll() {
-    [...this._hidden].forEach(({ win }) => this.restoreWindow(win));
-  }
-
-  _cleanup(win) {
-    const idx = this._hidden.findIndex(e => e.win === win);
-    if (idx !== -1) {
-      this._hidden.splice(idx, 1);
-      this._updateBadge();
+    if (concealed) {
+      try {
+        Main.notify('Ghost Window', `${appName} concealed (Ctrl+Alt+K to release)`);
+      } catch (_) {}
+      console.log(`[GhostWindow] Concealed: ${appName}`);
     }
   }
 
-  // ── HELPERS ─────────────────────────────────────────────────
-  getHiddenWindows() {
-    return [...this._hidden];
+  /**
+   * Boss Key / Panic Mode: Instantly conceals all normal visible windows.
+   */
+  triggerPanicMode() {
+    const activeWorkspace = global.workspace_manager.get_active_workspace();
+    const visibleWindows = global.display.get_tab_list(Meta.TabList.NORMAL, activeWorkspace);
+
+    let concealedCount = 0;
+    for (const win of visibleWindows) {
+      if (this._concealWindow(win)) {
+        concealedCount++;
+      }
+    }
+
+    if (concealedCount > 0) {
+      try {
+        Main.notify(
+          'Ghost Window — Panic Mode',
+          `${concealedCount} window${concealedCount > 1 ? 's' : ''} concealed`
+        );
+      } catch (_) {}
+      console.log(`[GhostWindow] Panic Mode activated: ${concealedCount} windows concealed`);
+    }
   }
 
-  _getAppName(win) {
+  restoreWindow(window) {
+    const itemIndex = this._hiddenWindows.findIndex(item => item.window === window);
+    if (itemIndex === -1) return;
+
+    const { signalId, appName } = this._hiddenWindows[itemIndex];
     try {
-      const app = Shell.WindowTracker.get_default().get_window_app(win);
+      window.disconnect(signalId);
+    } catch (_) {}
+
+    try {
+      window.unminimize();
+      window.activate(global.get_current_time());
+    } catch (_) {}
+
+    this._hiddenWindows.splice(itemIndex, 1);
+    this._syncOverviewWindow(window, false);
+    this._syncBadge();
+    console.log(`[GhostWindow] Restored: ${appName}`);
+  }
+
+  restoreAll() {
+    [...this._hiddenWindows].forEach(({ window }) => this.restoreWindow(window));
+  }
+
+  cleanupWindow(window) {
+    const itemIndex = this._hiddenWindows.findIndex(item => item.window === window);
+    if (itemIndex !== -1) {
+      const { signalId } = this._hiddenWindows[itemIndex];
+      try {
+        window.disconnect(signalId);
+      } catch (_) {}
+      this._hiddenWindows.splice(itemIndex, 1);
+      this._syncOverviewWindow(window, false);
+      this._syncBadge();
+    }
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  getHiddenWindows() {
+    return [...this._hiddenWindows];
+  }
+
+  _getAppName(window) {
+    try {
+      const tracker = Shell.WindowTracker.get_default();
+      const app = tracker.get_window_app(window);
       if (app) return app.get_name();
     } catch (_) {}
-    return win.get_wm_class() || 'Janela';
+
+    return window.get_wm_class() || 'Window';
   }
 
-  _updateBadge() {
-    this._indicator?.updateBadge(this._hidden.length);
+  _syncBadge() {
+    this._indicator?.updateBadge(this._hiddenWindows.length);
   }
 }

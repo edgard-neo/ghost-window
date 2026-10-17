@@ -3,161 +3,101 @@
   <a href="README.pt-br.md">🇧🇷 Português</a>
 </p>
 
+<div align="center">
+
 # 👻 Ghost Window
 
-> **Uma extensão para GNOME que faz qualquer janela desaparecer — sem fechar o programa.**
+**Oculte qualquer janela da tela, do Alt+Tab e do Overview — sem fechar o programa.**
 
-<p align="center">
-  <img src="https://img.shields.io/badge/GNOME_Shell-45%20%7C%2046%20%7C%2047-4A86CF?style=flat-square&logo=gnome&logoColor=white"/>
-  <img src="https://img.shields.io/badge/Wayland-✓-brightgreen?style=flat-square"/>
-  <img src="https://img.shields.io/badge/X11-✓-brightgreen?style=flat-square"/>
-  <img src="https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square"/>
-  <img src="https://img.shields.io/badge/maintained-yes-success?style=flat-square"/>
-</p>
+[![GNOME Shell](https://img.shields.io/badge/GNOME_Shell-45%20%7C%2046%20%7C%2047-4A86CF?style=flat-square&logo=gnome&logoColor=white)](https://extensions.gnome.org)
+[![Wayland](https://img.shields.io/badge/Wayland-suportado-success?style=flat-square)](#)
+[![X11](https://img.shields.io/badge/X11-suportado-success?style=flat-square)](#)
+[![Licença: GPL-3.0](https://img.shields.io/badge/Licen%C3%A7a-GPL--3.0-blue?style=flat-square)](LICENSE)
 
----
+<br/>
 
-## 💡 O Problema Que Ele Resolve
+![Prévia do Ghost Window](assets/image.png)
 
-Você está ouvindo música no YouTube, baixando um arquivo grande ou rodando uma compilação demorada — mas a janela fica entupindo seu Alt+Tab e espaço de trabalho.
-
-Você não quer fechar. Você só não quer ver.
-
-**Ghost Window resolve exatamente isso.**
+</div>
 
 ---
 
-## ✨ O Que Ele Faz
+## ⚡ Recursos
 
-Aperta um atalho → a janela some da tela, do Alt+Tab e do Dock.
-
-O programa **continua rodando normalmente em segundo plano** — áudio toca, downloads continuam, processos seguem. Você traz de volta a qualquer momento com um clique ou atalho.
-
-Pense nisso como colocar uma janela no "modo fantasma".
-
-![Preview](assets/image.png)
-
----
-
-## 🎯 Exemplos do Dia a Dia
-
-| Situação                             | O que você faz                           |
-| ------------------------------------ | ---------------------------------------- |
-| YouTube tocando enquanto trabalha    | Esconde o navegador, o áudio continua    |
-| Download ou build demorado rodando   | Esconde o terminal, ele continua rodando |
-| App que você vai precisar mais tarde | Esconde, restaura com um clique          |
+- **Oculte sob demanda:** Pressione `Ctrl + Alt + J` para esconder a janela em foco imediatamente.
+- **🚨 Modo Pânico (Boss Key):** Pressione `Ctrl + Alt + Escape` para ocultar todas as janelas abertas de uma só vez.
+- **Segundo plano ativo:** Áudio, downloads e compilações continuam executando silenciosamente.
+- **Invisibilidade completa:** Fora do `Alt + Tab`, da barra de favoritos e da visão geral do GNOME (Overview / tecla `Super`).
+- **Menu no Painel Superior:** Restaure janelas individualmente, restaure todas ou encerre processos diretamente.
+- **Configurações Interativas em Libadwaita:** Clique e pressione as teclas para gravar novos atalhos com detecção nativa.
 
 ---
 
-## 🚀 Como Instalar
+## 🚀 Início Rápido
 
-**Requisitos:** Linux com GNOME Shell 45, 46 ou 47 (Ubuntu, Fedora, Zorin OS, etc.)
-
-```bash
-# 1. Baixe o projeto
-git clone https://github.com/edgard-neo/ghost-window.git
-cd ghost-window
-
-# 2. Execute o instalador
-chmod +x install.sh
-./install.sh
-
-# 3. Saia e entre novamente na sessão (necessário no Wayland)
-gnome-session-quit --logout --no-prompt
-
-# 4. Ative a extensão
-gnome-extensions enable ghost-window@ghostwindow.local
-```
-
----
-
-## ⌨️ Atalhos
-
-| Atalho           | O que faz                  |
-| ---------------- | -------------------------- |
-| `Ctrl + Alt + J` | Esconde a janela em foco   |
-| `Ctrl + Alt + K` | Abre o menu de restauração |
-| Clique no 👻     | Abre o menu de restauração |
-
-> Quer mudar os atalhos? Execute: `gnome-extensions prefs ghost-window@ghostwindow.local`
-
----
-
-## 🔄 Uso no Dia a Dia
-
-```
-1. Abra o Chrome com o YouTube
-2. Pressione Ctrl+Alt+J
-   → O Chrome some do Alt+Tab e do Overview
-   → A música continua tocando
-
-3. Para trazer de volta:
-   → Clique no 👻 na barra do topo
-   → Ou pressione Ctrl+Alt+K
-   → Clique no nome do app
-
-4. Para desativar o Ghost Window:
-   → Clique no 👻 → "⏻ Disable Ghost Window"
-   → Todas as janelas escondidas voltam automaticamente
-```
-
----
-
-## 🔧 Como Funciona por Dentro
-
-> _Para desenvolvedores e curiosos — pode pular se só quiser usar._
-
-O Ghost Window usa dois ganchos da API JavaScript do GNOME Shell:
-
-- **`window.minimize()`** — esconde a janela da tela (funciona no Wayland e no X11)
-- **Override de `get_tab_list()`** — intercepta o construtor do Alt+Tab do GNOME e filtra as janelas escondidas antes de exibi-las
-
-Quando a extensão é desativada, os dois ganchos são removidos e todas as janelas são restauradas automaticamente.
-
----
-
-## 🐛 Problemas Comuns
-
-**Extensão aparece como INATIVA após instalar**
-→ Você precisa sair e entrar novamente na sessão. No Wayland, o shell não recarrega automaticamente.
-
-**Atalho não funciona**
-
-```bash
-journalctl -b -o cat /usr/bin/gnome-shell 2>/dev/null | grep -i ghost
-```
-
-**Janela ainda aparece no Alt+Tab**
-→ Faça logout e login completo após instalar. O patch do Alt+Tab só ativa em uma sessão nova.
-
----
-
-## 📋 Limitações Conhecidas
-
-| Limitação                                         | Status                                 |
-| ------------------------------------------------- | -------------------------------------- |
-| Wayland exige logout após instalar                | Por design (limitação do GNOME)        |
-| Janelas podem aparecer nas miniaturas do Overview | Correção planejada                     |
-| Notificações de apps escondidos ainda aparecem    | Esperado — o processo continua rodando |
-
----
-
-## 🤝 Contribuindo
+### 1. Instalação
 
 ```bash
 git clone https://github.com/edgard-neo/ghost-window.git
 cd ghost-window
-./install.sh
-
-# Acompanhe os logs em tempo real durante o desenvolvimento
-journalctl -f -o cat /usr/bin/gnome-shell 2>/dev/null | grep GhostWindow
-
-# Após mudanças no Wayland: logout + login
-# Após mudanças no X11: Alt+F2 → digite 'r' → Enter
+make install
 ```
+
+*(Ou simplesmente execute `./install.sh`)*
+
+### 2. Reiniciar o GNOME Shell
+
+- **Wayland:** Encerre a sessão (logout) e faça login novamente.
+- **X11:** Pressione `Alt + F2`, digite `r` e tecle `Enter`.
+
+### 3. Ativar a Extensão
+
+```bash
+make enable
+# ou: gnome-extensions enable ghost-window@ghostwindow.local
+```
+
+---
+
+## ⌨️ Atalhos Padrão
+
+| Atalho | Ação |
+| :--- | :--- |
+| <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>J</kbd> | Ocultar janela em foco |
+| <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>Escape</kbd> | **Modo Pânico:** Ocultar todas as janelas abertas |
+| <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>K</kbd> | Abrir menu de restauração no painel |
+| Clique no **👻** | Abrir menu de restauração no painel |
+
+> **Alterar atalhos:** Abra as preferências com `make prefs` ou `gnome-extensions prefs ghost-window@ghostwindow.local`. Basta clicar no botão do atalho e pressionar as teclas desejadas!
+
+---
+
+## 🛠️ Comandos do Projeto
+
+O repositório inclui um `Makefile` padrão para facilitar o uso e desenvolvimento:
+
+| Comando | Descrição |
+| :--- | :--- |
+| `make install` | Compila os schemas e instala no diretório de extensões do usuário |
+| `make pack` | Gera o arquivo `.zip` para publicação no [extensions.gnome.org](https://extensions.gnome.org) |
+| `make enable` | Ativa a extensão |
+| `make disable` | Desativa a extensão e restaura todas as janelas |
+| `make prefs` | Abre a janela de preferências Libadwaita |
+| `make clean` | Remove schemas compilados e pacotes gerados |
+| `make uninstall` | Remove a extensão do sistema |
+
+---
+
+## 🔍 Como Funciona
+
+1. **Minimização silenciosa:** Ao acionar o atalho, a janela é minimizada via API do Mutter.
+2. **Filtro no Alt+Tab:** O Ghost Window intercepta o construtor `get_tab_list` do GNOME para remover janelas ocultas do alternador.
+3. **Exclusão total do Overview:** Intercepta o módulo `Workspace` do GNOME Shell para que janelas ocultas não apareçam nas miniaturas da tela de Atividades.
+4. **Bloqueio de atenção:** Impede que apps ocultos reapareçam sozinhos ao emitir notificações de atenção.
+5. **Limpeza automática:** Se o aplicativo for encerrado em segundo plano, sua entrada é automaticamente removida do menu.
 
 ---
 
 ## 📜 Licença
 
-GNU General Public License v3.0 — veja [LICENSE](LICENSE).
+Distribuído sob a licença **GNU General Public License v3.0**. Consulte [LICENSE](LICENSE) para mais detalhes.

@@ -5,14 +5,20 @@
 
     <key name="hide-shortcut" type="as">
       <default><![CDATA[['<Control><Alt>j']]]></default>
-      <summary>Shortcut to hide the active window</summary>
-      <description>Keyboard shortcut to hide the focused window from Alt+Tab and Overview. Default: Ctrl+Alt+J</description>
+      <summary>Shortcut to conceal the active window</summary>
+      <description>Keyboard shortcut to conceal the focused window from Alt+Tab and Overview. Default: Ctrl+Alt+J</description>
     </key>
 
     <key name="restore-shortcut" type="as">
       <default><![CDATA[['<Control><Alt>k']]]></default>
-      <summary>Shortcut to open the release menu</summary>
-      <description>Opens the panel menu to release hidden windows. Default: Ctrl+Alt+K</description>
+      <summary>Shortcut to open the restore menu</summary>
+      <description>Opens the panel menu to release concealed windows. Default: Ctrl+Alt+K</description>
+    </key>
+
+    <key name="panic-shortcut" type="as">
+      <default><![CDATA[['<Control><Alt>Escape']]]></default>
+      <summary>Shortcut for Panic Mode (conceal all active windows)</summary>
+      <description>Conceals all visible windows on the screen instantly. Default: Ctrl+Alt+Escape</description>
     </key>
 
   </schema>
